@@ -1,6 +1,23 @@
 from pydantic_settings import BaseSettings
 from typing import List
 import json
+import os
+from pathlib import Path
+
+# Find .env file - check current dir, parent dir, and project root
+def find_env_file():
+    # Try current directory
+    if os.path.exists(".env"):
+        return ".env"
+    # Try parent directory (for when running from backend/)
+    if os.path.exists("../.env"):
+        return "../.env"
+    # Try project root
+    project_root = Path(__file__).parent.parent.parent
+    env_path = project_root / ".env"
+    if env_path.exists():
+        return str(env_path)
+    return ".env"  # Default, will fail if not found
 
 class Settings(BaseSettings):
     # Database
@@ -37,7 +54,7 @@ class Settings(BaseSettings):
         )
     
     class Config:
-        env_file = ".env"
+        env_file = find_env_file()
         case_sensitive = True
 
 settings = Settings()
