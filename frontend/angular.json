@@ -15,7 +15,7 @@
           "options": {
             "outputPath": "dist/nyc-tlc-analytics-frontend",
             "index": "index.html",
-            "main": "src/app/app.component.ts",
+            "main": "src/main.ts",
             "polyfills": [],
             "tsConfig": "tsconfig.json",
             "assets": [],
