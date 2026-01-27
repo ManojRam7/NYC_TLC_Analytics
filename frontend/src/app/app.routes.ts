@@ -18,12 +18,12 @@ export const authGuard = () => {
 };
 
 export const routes: Routes = [
-  { path: '', redirectTo: '/dashboard', pathMatch: 'full' },
+  { path: '', redirectTo: '/login', pathMatch: 'full' },
   { path: 'login', component: LoginComponent },
   { 
     path: 'dashboard', 
     component: DashboardComponent,
     canActivate: [authGuard]
   },
-  { path: '**', redirectTo: '/dashboard' }
+  { path: '**', redirectTo: '/login' }
 ];
