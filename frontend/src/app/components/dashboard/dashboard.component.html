@@ -60,10 +60,20 @@
     <h2>📋 Trip Records</h2>
     
     <div class="loading" *ngIf="loadingTable">
-      Loading trip data...
+      <div class="spinner"></div>
+      <p>Loading trip records...</p>
+    </div>
+    
+    <div *ngIf="!loadingTable && trips.length === 0 && !tripError" class="empty-state">
+      <p>No trip records found for selected filters.</p>
+      <small>Try adjusting your date range or removing filters.</small>
+    </div>
+    
+    <div *ngIf="tripError" class="alert-warning">
+      <strong>⚠️ Unable to load trip records.</strong> {{ tripError }}
     </div>
 
-    <div *ngIf="!loadingTable">
+    <div *ngIf="!loadingTable && trips.length > 0">
       <table class="trips-table">
         <thead>
           <tr>

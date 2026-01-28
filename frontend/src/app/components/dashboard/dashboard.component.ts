@@ -30,6 +30,10 @@ export class DashboardComponent implements OnInit {
   loadingChart = false;
   loadingTable = false;
   
+  // Error states
+  chartError: string = '';
+  tripError: string = '';
+  
   // Pagination
   currentPage = 1;
   pageSize = 50;
@@ -100,6 +104,7 @@ export class DashboardComponent implements OnInit {
 
   loadAggregates(): void {
     this.loadingChart = true;
+    this.chartError = '';
     
     this.apiService.getDailyAggregates(
       this.startDate,
@@ -112,9 +117,14 @@ export class DashboardComponent implements OnInit {
         this.aggregates = response.data;
         this.updateChart();
         this.loadingChart = false;
+        
+        if (this.aggregates.length === 0) {
+          this.chartError = 'No data available for selected date range.';
+        }
       },
       error: (err) => {
         console.error('Error loading aggregates:', err);
+        this.chartError = 'Failed to load chart data. Please try again.';
         this.loadingChart = false;
         if (err.status === 401) {
           this.authService.logout();
@@ -126,6 +136,7 @@ export class DashboardComponent implements OnInit {
 
   loadTrips(): void {
     this.loadingTable = true;
+    this.tripError = '';
     
     this.apiService.getTrips(
       this.startDate,
@@ -143,7 +154,11 @@ export class DashboardComponent implements OnInit {
       },
       error: (err) => {
         console.error('Error loading trips:', err);
+        this.tripError = err.status === 504 || err.status === 0 
+          ? 'Request timeout. Try selecting a smaller date range.'
+          : 'Failed to load trip records. Please try again.';
         this.loadingTable = false;
+        this.trips = [];
       }
     });
   }

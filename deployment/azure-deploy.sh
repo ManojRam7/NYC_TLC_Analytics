@@ -15,7 +15,7 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 # Configuration
-RESOURCE_GROUP="nyc-tlc-analytics-rg"
+RESOURCE_GROUP="nyc-tlc-analytics_rg"
 LOCATION="eastus"
 ACR_NAME="nyctlcregistry"
 BACKEND_APP_NAME="nyc-tlc-backend-api"
