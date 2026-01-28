@@ -45,6 +45,67 @@ echo ""
 echo -e "${GREEN}✅ Great! Let's prepare for deployment.${NC}"
 echo ""
 
+# Check Azure CLI and current account
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e "${YELLOW}STEP 1.5: Check Azure Account${NC}"
+echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo ""
+
+if command -v az &> /dev/null; then
+    echo "Checking Azure login status..."
+    echo ""
+    
+    if az account show &> /dev/null; then
+        CURRENT_USER=$(az account show --query "user.name" -o tsv)
+        CURRENT_SUB=$(az account show --query "name" -o tsv)
+        CURRENT_TENANT=$(az account show --query "tenantDisplayName" -o tsv)
+        
+        echo -e "${GREEN}✅ You are logged into Azure:${NC}"
+        echo ""
+        echo "   User: $CURRENT_USER"
+        echo "   Subscription: $CURRENT_SUB"
+        echo "   Tenant: $CURRENT_TENANT"
+        echo ""
+        
+        read -p "Is this the correct account for deployment? (y/n): " correct_account
+        
+        if [ "$correct_account" != "y" ]; then
+            echo ""
+            echo -e "${YELLOW}Let's see your available subscriptions:${NC}"
+            echo ""
+            az account list --output table
+            echo ""
+            echo "To switch to a different account:"
+            echo "   1. Different email: az logout && az login"
+            echo "   2. Different subscription: az account set --subscription \"NAME\""
+            echo ""
+            read -p "Press Enter after switching accounts..."
+            
+            # Check again
+            CURRENT_USER=$(az account show --query "user.name" -o tsv)
+            CURRENT_SUB=$(az account show --query "name" -o tsv)
+            echo ""
+            echo -e "${GREEN}✅ Now using:${NC}"
+            echo "   User: $CURRENT_USER"
+            echo "   Subscription: $CURRENT_SUB"
+        fi
+    else
+        echo -e "${YELLOW}⚠️  Not logged into Azure. Please login:${NC}"
+        echo ""
+        echo "   az login"
+        echo ""
+        read -p "Press Enter after logging in..."
+    fi
+else
+    echo -e "${YELLOW}⚠️  Azure CLI not installed.${NC}"
+    echo ""
+    echo "Install with: brew install azure-cli"
+    echo ""
+    read -p "Press Enter after installing Azure CLI..."
+fi
+
+echo ""
+
 # Database info
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo -e "${YELLOW}STEP 2: Database Information${NC}"
