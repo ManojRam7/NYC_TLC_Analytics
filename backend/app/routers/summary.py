@@ -78,26 +78,8 @@ async def get_summary_stats(
     
     by_service = db.execute_query(service_query, tuple(params))
     
-    # Get top boroughs
-    borough_query = f"""
-        SELECT TOP 5
-            pickup_borough,
-            COUNT(*) as trip_count,
-            AVG(trip_distance) as avg_distance
-        FROM fact_trips
-        WHERE pickup_date BETWEEN ? AND ?
-            AND pickup_borough IS NOT NULL
-            AND is_valid = 1
-            {'AND service_type = ?' if service_type else ''}
-        GROUP BY pickup_borough
-        ORDER BY trip_count DESC
-    """
-    
-    borough_params = [start_date, end_date]
-    if service_type:
-        borough_params.append(service_type.value)
-    
-    by_borough = db.execute_query(borough_query, tuple(borough_params))
+    # Skip borough query for performance - fact_trips table is too large (159.5M records)
+    # This was causing timeouts
     
     result = SummaryStats(
         total_trips=int(summary.get('total_trips', 0) or 0),
@@ -106,7 +88,7 @@ async def get_summary_stats(
         avg_duration_minutes=round(float(summary.get('avg_duration_sec', 0) or 0) / 60, 1),
         avg_fare=round(float(summary.get('avg_fare', 0) or 0), 2),
         by_service_type=[dict(row) for row in by_service],
-        by_borough=[dict(row) for row in by_borough]
+        by_borough=[]  # Empty for performance
     )
     
     # Cache result
