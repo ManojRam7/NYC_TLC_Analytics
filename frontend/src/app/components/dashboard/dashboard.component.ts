@@ -8,6 +8,9 @@ import { ApiService } from '../../services/api.service';
 import { AuthService } from '../../services/auth.service';
 import { DailyAggregate } from '../../models/aggregate.model';
 import { Trip } from '../../models/trip.model';
+import { SummaryStats } from '../../models/summary.model';
+import { Subject } from 'rxjs';
+import { debounceTime, distinctUntilChanged } from 'rxjs/operators';
 
 @Component({
   selector: 'app-dashboard',
@@ -23,14 +26,17 @@ export class DashboardComponent implements OnInit {
   serviceType: string = '';
   
   // Data
+  summary: SummaryStats | null = null;
   aggregates: DailyAggregate[] = [];
   trips: Trip[] = [];
   
   // Loading states
+  loadingSummary = false;
   loadingChart = false;
   loadingTable = false;
   
   // Error states
+  summaryError: string = '';
   chartError: string = '';
   tripError: string = '';
   
@@ -40,7 +46,10 @@ export class DashboardComponent implements OnInit {
   totalRecords = 0;
   totalPages = 0;
   
-  // Chart configuration
+  // Filter change subject for debouncing
+  private filterChange$ = new Subject<void>();
+  
+  // Chart configurations
   public lineChartData: ChartConfiguration['data'] = {
     datasets: [],
     labels: []
@@ -49,35 +58,140 @@ export class DashboardComponent implements OnInit {
   public lineChartOptions: ChartConfiguration['options'] = {
     responsive: true,
     maintainAspectRatio: false,
+    interaction: {
+      mode: 'index',
+      intersect: false,
+    },
     plugins: {
       legend: {
         display: true,
-        position: 'top'
+        position: 'top',
+        labels: {
+          usePointStyle: true,
+          padding: 15,
+          font: {
+            size: 12
+          }
+        }
       },
       title: {
-        display: true,
-        text: 'Daily Trip Volume - Time Series'
+        display: false
+      },
+      tooltip: {
+        backgroundColor: 'rgba(0,0,0,0.8)',
+        padding: 12,
+        titleFont: {
+          size: 14
+        },
+        bodyFont: {
+          size: 13
+        }
       }
     },
     scales: {
       x: {
         display: true,
-        title: {
-          display: true,
-          text: 'Date'
+        grid: {
+          color: 'rgba(0,0,0,0.05)'
         }
       },
       y: {
         display: true,
-        title: {
-          display: true,
-          text: 'Total Trips'
+        grid: {
+          color: 'rgba(0,0,0,0.05)'
+        },
+        ticks: {
+          callback: function(value) {
+            return value.toLocaleString();
+          }
         }
       }
     }
   };
   
   public lineChartType: ChartType = 'line';
+  
+  // Pie chart for service type distribution
+  public pieChartData: ChartConfiguration['data'] = {
+    datasets: [],
+    labels: []
+  };
+  
+  public pieChartOptions: ChartConfiguration['options'] = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: {
+        display: true,
+        position: 'right',
+        labels: {
+          padding: 15,
+          font: {
+            size: 12
+          }
+        }
+      },
+      tooltip: {
+        callbacks: {
+          label: function(context) {
+            const label = context.label || '';
+            const value = context.parsed;
+            const dataset = context.dataset.data as number[];
+            const total = dataset.reduce((a: number, b: number) => a + b, 0);
+            const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : '0';
+            return `${label}: ${value.toLocaleString()} (${percentage}%)`;
+          }
+        }
+      }
+    }
+  };
+  
+  public pieChartType: ChartType = 'doughnut';
+  
+  // Bar chart for revenue
+  public revenueChartData: ChartConfiguration['data'] = {
+    datasets: [],
+    labels: []
+  };
+  
+  public revenueChartOptions: ChartConfiguration['options'] = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: {
+        display: false
+      },
+      tooltip: {
+        backgroundColor: 'rgba(0,0,0,0.8)',
+        padding: 12,
+        callbacks: {
+          label: function(context) {
+            const value = context.parsed.y ?? 0;
+            return ' $' + value.toLocaleString('en-US', {minimumFractionDigits: 2});
+          }
+        }
+      }
+    },
+    scales: {
+      x: {
+        grid: {
+          display: false
+        }
+      },
+      y: {
+        grid: {
+          color: 'rgba(0,0,0,0.05)'
+        },
+        ticks: {
+          callback: function(value) {
+            return '$' + value.toLocaleString();
+          }
+        }
+      }
+    }
+  };
+  
+  public revenueChartType: ChartType = 'bar';
 
   constructor(
     private apiService: ApiService,
@@ -90,7 +204,20 @@ export class DashboardComponent implements OnInit {
   }
 
   ngOnInit(): void {
+    // Subscribe to filter changes with debouncing
+    this.filterChange$.pipe(
+      debounceTime(500),  // Wait 500ms after user stops typing
+      distinctUntilChanged()
+    ).subscribe(() => {
+      this.loadData();
+    });
+    
     this.loadData();
+  }
+
+  onFilterChange(): void {
+    // Trigger debounced load
+    this.filterChange$.next();
   }
 
   formatDate(date: Date): string {
@@ -98,8 +225,35 @@ export class DashboardComponent implements OnInit {
   }
 
   loadData(): void {
+    this.loadSummary();
     this.loadAggregates();
     this.loadTrips();
+  }
+  
+  loadSummary(): void {
+    this.loadingSummary = true;
+    this.summaryError = '';
+    
+    this.apiService.getSummary(
+      this.startDate,
+      this.endDate,
+      this.serviceType || undefined
+    ).subscribe({
+      next: (data) => {
+        this.summary = data;
+        this.loadingSummary = false;
+        this.updatePieChart();
+      },
+      error: (err) => {
+        console.error('Error loading summary:', err);
+        this.summaryError = 'Failed to load summary statistics.';
+        this.loadingSummary = false;
+        if (err.status === 401) {
+          this.authService.logout();
+          this.router.navigate(['/login']);
+        }
+      }
+    });
   }
 
   loadAggregates(): void {
@@ -115,7 +269,7 @@ export class DashboardComponent implements OnInit {
     ).subscribe({
       next: (response) => {
         this.aggregates = response.data;
-        this.updateChart();
+        this.updateCharts();
         this.loadingChart = false;
         
         if (this.aggregates.length === 0) {
@@ -135,7 +289,7 @@ export class DashboardComponent implements OnInit {
   }
 
   loadTrips(): void {
-    this.loadingTable = true;
+    this.loadingTable = false;
     this.tripError = '';
     
     this.apiService.getTrips(
@@ -151,73 +305,155 @@ export class DashboardComponent implements OnInit {
         this.totalRecords = response.pagination.total_records;
         this.totalPages = response.pagination.total_pages;
         this.loadingTable = false;
+        
+        if (this.trips.length === 0 && !this.tripError) {
+          this.tripError = 'No trip records found for selected filters.';
+        }
       },
       error: (err) => {
         console.error('Error loading trips:', err);
-        this.tripError = err.status === 504 || err.status === 0 
-          ? 'Request timeout. Try selecting a smaller date range.'
-          : 'Failed to load trip records. Please try again.';
+        this.tripError = err.status === 504 || err.statusText === 'Gateway Timeout' 
+          ? 'Request timed out. Try a smaller date range.' 
+          : 'Failed to load trip records.';
         this.loadingTable = false;
-        this.trips = [];
+        if (err.status === 401) {
+          this.authService.logout();
+          this.router.navigate(['/login']);
+        }
       }
     });
   }
 
-  updateChart(): void {
-    // Group by service type
-    const serviceTypes = [...new Set(this.aggregates.map(a => a.service_type))];
+  updateCharts(): void {
+    // Group data by date and service type
+    const dateMap = new Map<string, Map<string, number>>();
+    const revenueMap = new Map<string, number>();
     
-    // Get unique dates
-    const dates = [...new Set(this.aggregates.map(a => a.metric_date))]
-      .sort();
+    this.aggregates.forEach(agg => {
+      const dateStr = new Date(agg.metric_date).toLocaleDateString('en-US', { 
+        month: 'short', 
+        day: 'numeric' 
+      });
+      
+      if (!dateMap.has(dateStr)) {
+        dateMap.set(dateStr, new Map());
+      }
+      
+      const serviceMap = dateMap.get(dateStr)!;
+      serviceMap.set(agg.service_type, (serviceMap.get(agg.service_type) || 0) + agg.total_trips);
+      
+      // Revenue by date
+      revenueMap.set(dateStr, (revenueMap.get(dateStr) || 0) + agg.total_revenue);
+    });
     
-    // Create datasets for each service type
+    // Sort dates
+    const sortedDates = Array.from(dateMap.keys()).sort((a, b) => {
+      return new Date(a).getTime() - new Date(b).getTime();
+    });
+    
+    // Get unique service types
+    const serviceTypes = Array.from(new Set(this.aggregates.map(a => a.service_type)));
+    
+    // Color palette
+    const colors: { [key: string]: string } = {
+      'yellow': '#f1c40f',
+      'green': '#2ecc71',
+      'fhv': '#3498db',
+      'fhvhv': '#9b59b6'
+    };
+    
+    // Build line chart datasets
     const datasets = serviceTypes.map(serviceType => {
-      const data = dates.map(date => {
-        const agg = this.aggregates.find(
-          a => a.metric_date === date && a.service_type === serviceType
-        );
-        return agg ? agg.total_trips : 0;
+      const data = sortedDates.map(date => {
+        const serviceMap = dateMap.get(date);
+        return serviceMap?.get(serviceType) || 0;
       });
       
       return {
-        label: serviceType.charAt(0).toUpperCase() + serviceType.slice(1),
+        label: serviceType.toUpperCase(),
         data: data,
-        fill: false,
-        tension: 0.4,
-        borderColor: this.getColorForServiceType(serviceType),
-        backgroundColor: this.getColorForServiceType(serviceType)
+        borderColor: colors[serviceType] || '#95a5a6',
+        backgroundColor: (colors[serviceType] || '#95a5a6') + '20',
+        borderWidth: 2,
+        pointRadius: 3,
+        pointHoverRadius: 5,
+        tension: 0.3,
+        fill: true
       };
     });
     
     this.lineChartData = {
-      labels: dates,
+      labels: sortedDates,
       datasets: datasets
     };
-  }
-
-  getColorForServiceType(serviceType: string): string {
-    const colors: any = {
-      'yellow': '#FFD700',
-      'green': '#32CD32',
-      'fhv': '#4169E1',
-      'fhvhv': '#FF6347'
+    
+    // Build revenue bar chart
+    this.revenueChartData = {
+      labels: sortedDates,
+      datasets: [{
+        label: 'Revenue',
+        data: sortedDates.map(date => revenueMap.get(date) || 0),
+        backgroundColor: '#667eea',
+        borderColor: '#5568d3',
+        borderWidth: 1
+      }]
     };
-    return colors[serviceType] || '#999';
+  }
+  
+  updatePieChart(): void {
+    if (!this.summary || !this.summary.by_service_type.length) {
+      return;
+    }
+    
+    const colors = ['#f1c40f', '#2ecc71', '#3498db', '#9b59b6'];
+    
+    this.pieChartData = {
+      labels: this.summary.by_service_type.map(s => s.service_type.toUpperCase()),
+      datasets: [{
+        data: this.summary.by_service_type.map(s => s.total_trips),
+        backgroundColor: colors,
+        borderWidth: 2,
+        borderColor: '#fff'
+      }]
+    };
   }
 
-  onFilterChange(): void {
-    this.currentPage = 1;
-    this.loadData();
-  }
-
-  onPageChange(page: number): void {
-    this.currentPage = page;
+  onPageChange(newPage: number): void {
+    if (newPage < 1 || newPage > this.totalPages) {
+      return;
+    }
+    this.currentPage = newPage;
     this.loadTrips();
   }
 
   logout(): void {
     this.authService.logout();
     this.router.navigate(['/login']);
+  }
+  
+  exportData(): void {
+    // Export current view data to CSV
+    const headers = ['Date', 'Service Type', 'Total Trips', 'Total Revenue', 'Avg Distance', 'Avg Duration (min)', 'Avg Fare'];
+    const rows = this.aggregates.map(agg => [
+      agg.metric_date,
+      agg.service_type,
+      agg.total_trips,
+      agg.total_revenue.toFixed(2),
+      (agg.avg_trip_distance || 0).toFixed(2),
+      ((agg.avg_trip_duration_sec || 0) / 60).toFixed(1),
+      (agg.avg_fare_amount || 0).toFixed(2)
+    ]);
+    
+    const csvContent = [headers, ...rows]
+      .map(row => row.join(','))
+      .join('\n');
+    
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `nyc-tlc-data-${this.startDate}-${this.endDate}.csv`;
+    a.click();
+    window.URL.revokeObjectURL(url);
   }
 }

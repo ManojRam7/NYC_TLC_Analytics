@@ -36,10 +36,23 @@ class Settings(BaseSettings):
     API_TITLE: str = "NYC TLC Trip Analytics API"
     API_VERSION: str = "1.0.0"
     CORS_ORIGINS: str = '["http://localhost:4200"]'
+    ALLOWED_ORIGINS: str = ""  # Alternative env var name, takes precedence
     
     @property
     def cors_origins_list(self) -> List[str]:
-        return json.loads(self.CORS_ORIGINS)
+        # Use ALLOWED_ORIGINS if set, otherwise fall back to CORS_ORIGINS
+        origins_str = self.ALLOWED_ORIGINS if self.ALLOWED_ORIGINS else self.CORS_ORIGINS
+        
+        # Handle "*" for all origins
+        if origins_str == "*":
+            return ["*"]
+        
+        # Handle JSON array format
+        try:
+            return json.loads(origins_str)
+        except json.JSONDecodeError:
+            # If not valid JSON, treat as single origin
+            return [origins_str] if origins_str else ["http://localhost:4200"]
     
     @property
     def database_url(self) -> str:

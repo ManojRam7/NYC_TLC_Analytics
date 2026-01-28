@@ -62,6 +62,15 @@ class StatisticsResponse(BaseModel):
     date_range: dict
     by_service_type: List[ServiceTypeStats]
 
+class SummaryStats(BaseModel):
+    total_trips: int
+    total_revenue: float
+    avg_distance: float
+    avg_duration_minutes: float
+    avg_fare: float
+    by_service_type: List[dict]
+    by_borough: List[dict]
+
 class Token(BaseModel):
     access_token: str
     token_type: str

@@ -5,7 +5,7 @@ from datetime import timedelta
 from app.config import settings
 from app.auth import authenticate_user, create_access_token, get_current_active_user
 from app.models import Token, User
-from app.routers import aggregates, trips, statistics
+from app.routers import aggregates, trips, statistics, summary
 
 # Create FastAPI app
 app = FastAPI(
@@ -15,10 +15,11 @@ app = FastAPI(
 )
 
 # CORS middleware
+# Note: For production, specify exact origins instead of ["*"]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.cors_origins_list,
-    allow_credentials=True,
+    allow_origins=["*"],  # Allow all origins for now
+    allow_credentials=False,  # Must be False when using allow_origins=["*"]
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -27,6 +28,7 @@ app.add_middleware(
 app.include_router(aggregates.router)
 app.include_router(trips.router)
 app.include_router(statistics.router)
+app.include_router(summary.router)
 
 # Authentication endpoint
 @app.post("/token", response_model=Token)

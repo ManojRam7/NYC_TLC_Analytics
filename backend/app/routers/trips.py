@@ -1,7 +1,8 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from typing import Optional
 from datetime import date
 import math
+import hashlib
 from app.database import db
 from app.models import (
     TripsResponse,
@@ -20,6 +21,7 @@ router = APIRouter(
 
 @router.get("", response_model=TripsResponse)
 async def get_trips(
+    response: Response,
     start_date: date = Query(..., description="Start date (YYYY-MM-DD)"),
     end_date: date = Query(..., description="End date (YYYY-MM-DD)"),
     service_type: Optional[ServiceType] = Query(None, description="Filter by service type"),
@@ -33,6 +35,9 @@ async def get_trips(
     
     Note: For performance, limit date range to 30 days or less.
     """
+    
+    # Add cache headers (2 minutes for trip data)
+    response.headers["Cache-Control"] = "private, max-age=120"
     
     # Validate date range
     if start_date > end_date:

@@ -1,14 +1,18 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from typing import Optional
 from datetime import date
 import math
+import hashlib
+import json
+from functools import lru_cache
 from app.database import db
 from app.models import (
     DailyAggregatesResponse, 
     DailyAggregate, 
     PaginationResponse,
     ServiceType,
-    User
+    User,
+    SummaryStats
 )
 from app.auth import get_current_active_user
 
@@ -18,8 +22,17 @@ router = APIRouter(
     dependencies=[Depends(get_current_active_user)]
 )
 
+# Simple in-memory cache for aggregate queries
+aggregate_cache = {}
+MAX_CACHE_SIZE = 100
+
+def get_cache_key(start_date: date, end_date: date, service_type: Optional[str]) -> str:
+    """Generate cache key for aggregate queries"""
+    return hashlib.md5(f"{start_date}:{end_date}:{service_type}".encode()).hexdigest()
+
 @router.get("/daily", response_model=DailyAggregatesResponse)
 async def get_daily_aggregates(
+    response: Response,
     start_date: date = Query(..., description="Start date (YYYY-MM-DD)"),
     end_date: date = Query(..., description="End date (YYYY-MM-DD)"),
     service_type: Optional[ServiceType] = Query(None, description="Filter by service type"),
@@ -41,6 +54,16 @@ async def get_daily_aggregates(
     # Validate date range
     if start_date > end_date:
         raise HTTPException(status_code=400, detail="start_date must be before end_date")
+    
+    # Add cache headers (5 minutes for aggregates)
+    response.headers["Cache-Control"] = "private, max-age=300"
+    
+    # Check cache
+    cache_key = get_cache_key(start_date, end_date, service_type.value if service_type else None)
+    cache_entry_key = f"{cache_key}:{page}:{page_size}"
+    
+    if cache_entry_key in aggregate_cache:
+        return aggregate_cache[cache_entry_key]
     
     # Build query
     where_clauses = ["metric_date BETWEEN ? AND ?"]
@@ -97,7 +120,7 @@ async def get_daily_aggregates(
     # Convert to response model
     aggregates = [DailyAggregate(**row) for row in results]
     
-    return DailyAggregatesResponse(
+    result = DailyAggregatesResponse(
         data=aggregates,
         pagination=PaginationResponse(
             page=page,
@@ -106,3 +129,11 @@ async def get_daily_aggregates(
             total_pages=total_pages
         )
     )
+    
+    # Store in cache (limit cache size)
+    if len(aggregate_cache) >= MAX_CACHE_SIZE:
+        # Remove oldest entry
+        aggregate_cache.pop(next(iter(aggregate_cache)))
+    aggregate_cache[cache_entry_key] = result
+    
+    return result
