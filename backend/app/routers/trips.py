@@ -57,40 +57,32 @@ async def get_trips(
     
     where_sql = " AND ".join(where_clauses)
     
-    # Use approximate count for better performance
-    # For large datasets, exact count is too slow
-    # We'll use a reasonable estimate based on page size
-    if page == 1:
-        # Only check if data exists for first page
-        check_query = f"""
-            SELECT TOP 1 trip_id
-            FROM fact_trip 
-            WHERE {where_sql}
-        """
-        has_data = db.execute_scalar(check_query, tuple(params))
-        
-        if not has_data:
-            return TripsResponse(
-                data=[],
-                pagination=PaginationResponse(
-                    page=page,
-                    page_size=page_size,
-                    total_records=0,
-                    total_pages=0
-                )
-            )
+    # For pagination, we'll return a sample of records
+    # Exact count on 159M+ records would timeout
+    # Show first 500 records as sample data
+    max_sample_records = 500
     
-    # Use approximate count for pagination (much faster)
-    # This is acceptable for UI pagination
-    total_records = 1000000  # Reasonable estimate for filtered data
-    
-    # Calculate pagination
-    total_pages = math.ceil(total_records / page_size)
+    # Get paginated data with limit
     offset = (page - 1) * page_size
+    
+    # Don't allow going beyond sample size
+    if offset >= max_sample_records:
+        return TripsResponse(
+            data=[],
+            pagination=PaginationResponse(
+                page=page,
+                page_size=page_size,
+                total_records=max_sample_records,
+                total_pages=math.ceil(max_sample_records / page_size)
+            )
+        )
+    
+    # Adjust page size if it would exceed sample
+    actual_page_size = min(page_size, max_sample_records - offset)
     
     # Get paginated data
     data_query = f"""
-        SELECT 
+        SELECT TOP {actual_page_size}
             trip_id,
             service_type,
             pickup_datetime,
@@ -100,26 +92,29 @@ async def get_trips(
             dropoff_borough,
             dropoff_zone,
             trip_distance,
+            dropoff_zone,
+            trip_distance,
             total_amount,
             trip_duration_sec
         FROM fact_trip
         WHERE {where_sql}
         ORDER BY pickup_datetime DESC
-        OFFSET ? ROWS
-        FETCH NEXT ? ROWS ONLY
     """
     
-    results = db.execute_query(data_query, tuple(params + [offset, page_size]))
+    results = db.execute_query(data_query, tuple(params))
     
     # Convert to response model
     trips = [Trip(**row) for row in results]
+    
+    # Calculate total pages based on sample size
+    total_pages = math.ceil(max_sample_records / page_size)
     
     return TripsResponse(
         data=trips,
         pagination=PaginationResponse(
             page=page,
             page_size=page_size,
-            total_records=total_records,
+            total_records=max_sample_records,
             total_pages=total_pages
         )
     )

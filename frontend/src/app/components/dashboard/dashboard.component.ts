@@ -199,29 +199,28 @@ export class DashboardComponent implements OnInit {
     private router: Router
   ) {
     // Set default date range to show data from 2020-05 (where we have data)
-    this.startDate = '2020-05-01';
-    this.endDate = '2020-05-31';
+    const defaultStart = new Date('2020-05-01');
+    const defaultEnd = new Date('2020-05-31');
+    this.startDate = this.formatDateForInput(defaultStart);
+    this.endDate = this.formatDateForInput(defaultEnd);
+  }
+
+  formatDateForInput(date: Date): string {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
   }
 
   ngOnInit(): void {
-    // Subscribe to filter changes with debouncing
-    this.filterChange$.pipe(
-      debounceTime(500),  // Wait 500ms after user stops typing
-      distinctUntilChanged()
-    ).subscribe(() => {
-      this.loadData();
-    });
-    
     this.loadData();
   }
 
   onFilterChange(): void {
-    // Trigger debounced load
-    this.filterChange$.next();
-  }
-
-  formatDate(date: Date): string {
-    return date.toISOString().split('T')[0];
+    // Reset to page 1 when filters change
+    this.currentPage = 1;
+    // Load data immediately (date pickers trigger on selection, not typing)
+    this.loadData();
   }
 
   loadData(): void {
@@ -328,55 +327,62 @@ export class DashboardComponent implements OnInit {
     // Group data by date and service type
     const dateMap = new Map<string, Map<string, number>>();
     const revenueMap = new Map<string, number>();
+    const dateToSortKey = new Map<string, string>();
     
     this.aggregates.forEach(agg => {
-      const dateStr = new Date(agg.metric_date).toLocaleDateString('en-US', { 
+      // Parse the date string correctly
+      const date = new Date(agg.metric_date + 'T00:00:00');
+      const dateStr = date.toLocaleDateString('en-US', { 
         month: 'short', 
         day: 'numeric' 
       });
+      const sortKey = agg.metric_date; // Keep ISO format for sorting
       
-      if (!dateMap.has(dateStr)) {
-        dateMap.set(dateStr, new Map());
+      if (!dateMap.has(sortKey)) {
+        dateMap.set(sortKey, new Map());
+        dateToSortKey.set(sortKey, dateStr);
       }
       
-      const serviceMap = dateMap.get(dateStr)!;
+      const serviceMap = dateMap.get(sortKey)!;
       serviceMap.set(agg.service_type, (serviceMap.get(agg.service_type) || 0) + agg.total_trips);
       
       // Revenue by date
-      revenueMap.set(dateStr, (revenueMap.get(dateStr) || 0) + agg.total_revenue);
+      revenueMap.set(sortKey, (revenueMap.get(sortKey) || 0) + agg.total_revenue);
     });
     
-    // Sort dates
-    const sortedDates = Array.from(dateMap.keys()).sort((a, b) => {
-      return new Date(a).getTime() - new Date(b).getTime();
-    });
+    // Sort dates by ISO string
+    const sortedKeys = Array.from(dateMap.keys()).sort();
+    const sortedDates = sortedKeys.map(key => dateToSortKey.get(key)!);
     
     // Get unique service types
     const serviceTypes = Array.from(new Set(this.aggregates.map(a => a.service_type)));
     
-    // Color palette
-    const colors: { [key: string]: string } = {
-      'yellow': '#f1c40f',
-      'green': '#2ecc71',
-      'fhv': '#3498db',
-      'fhvhv': '#9b59b6'
+    // Color palette with matching point colors
+    const colors: { [key: string]: { border: string, bg: string, point: string } } = {
+      'yellow': { border: '#f1c40f', bg: '#f1c40f40', point: '#f1c40f' },
+      'green': { border: '#2ecc71', bg: '#2ecc7140', point: '#2ecc71' },
+      'fhv': { border: '#3498db', bg: '#3498db40', point: '#3498db' },
+      'fhvhv': { border: '#9b59b6', bg: '#9b59b640', point: '#9b59b6' }
     };
     
     // Build line chart datasets
     const datasets = serviceTypes.map(serviceType => {
-      const data = sortedDates.map(date => {
-        const serviceMap = dateMap.get(date);
+      const data = sortedKeys.map(key => {
+        const serviceMap = dateMap.get(key);
         return serviceMap?.get(serviceType) || 0;
       });
       
+      const colorScheme = colors[serviceType] || { border: '#95a5a6', bg: '#95a5a620', point: '#95a5a6' };
       return {
         label: serviceType.toUpperCase(),
         data: data,
-        borderColor: colors[serviceType] || '#95a5a6',
-        backgroundColor: (colors[serviceType] || '#95a5a6') + '20',
+        borderColor: colorScheme.border,
+        backgroundColor: colorScheme.bg,
+        pointBackgroundColor: colorScheme.point,
+        pointBorderColor: colorScheme.border,
         borderWidth: 2,
-        pointRadius: 3,
-        pointHoverRadius: 5,
+        pointRadius: 4,
+        pointHoverRadius: 6,
         tension: 0.3,
         fill: true
       };
@@ -392,7 +398,7 @@ export class DashboardComponent implements OnInit {
       labels: sortedDates,
       datasets: [{
         label: 'Revenue',
-        data: sortedDates.map(date => revenueMap.get(date) || 0),
+        data: sortedKeys.map(key => revenueMap.get(key) || 0),
         backgroundColor: '#667eea',
         borderColor: '#5568d3',
         borderWidth: 1
