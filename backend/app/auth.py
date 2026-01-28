@@ -7,16 +7,15 @@ from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from app.config import settings
 from app.models import TokenData, User, UserInDB, Token
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto", bcrypt__rounds=4)
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
 # Fake users database (replace with real database in production)
-# Using bcrypt rounds=4 for faster login (0.5s vs 2-3s with rounds=12)
 fake_users_db = {
     "admin": {
         "username": "admin",
         "email": "admin@nyctlc.com",
-        "hashed_password": "$2b$04$kGQ0VTHmYz7pYqK8B5qzMeL8T8o7cYlD4lEhxJ9TUcZ6x.xqwzJHm",  # password: secret (4 rounds)
+        "hashed_password": "$2b$12$EixZaYVK1fsbw1ZfbX3OXePaWxn96p36WQoeG6Lruj3vjPGga31lW",  # password: secret
         "disabled": False,
     }
 }
