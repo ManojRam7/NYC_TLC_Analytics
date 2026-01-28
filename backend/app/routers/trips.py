@@ -59,8 +59,8 @@ async def get_trips(
     
     # For pagination, we'll return a sample of records
     # Exact count on 159M+ records would timeout
-    # Show first 500 records as sample data
-    max_sample_records = 500
+    # Show first 100 records as quick sample
+    max_sample_records = 100
     
     # Get paginated data with limit
     offset = (page - 1) * page_size
@@ -80,7 +80,9 @@ async def get_trips(
     # Adjust page size if it would exceed sample
     actual_page_size = min(page_size, max_sample_records - offset)
     
-    # Get paginated data
+    # OPTIMIZED: Just fetch TOP N records directly - fastest approach
+    # Skip OFFSET for performance on 159M records
+    # Always show first N records that match filters
     data_query = f"""
         SELECT TOP {actual_page_size}
             trip_id,
@@ -92,11 +94,9 @@ async def get_trips(
             dropoff_borough,
             dropoff_zone,
             trip_distance,
-            dropoff_zone,
-            trip_distance,
             total_amount,
             trip_duration_sec
-        FROM fact_trip
+        FROM fact_trips WITH (NOLOCK)
         WHERE {where_sql}
         ORDER BY pickup_datetime DESC
     """
