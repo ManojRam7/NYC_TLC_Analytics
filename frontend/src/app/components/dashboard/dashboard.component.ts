@@ -46,6 +46,10 @@ export class DashboardComponent implements OnInit {
   totalRecords = 0;
   totalPages = 0;
   
+  // Full date labels for tooltips
+  private fullDateLabels: string[] = [];
+  private revenueFullDateLabels: string[] = [];
+  
   // Filter change subject for debouncing
   private filterChange$ = new Subject<void>();
   
@@ -85,6 +89,13 @@ export class DashboardComponent implements OnInit {
         },
         bodyFont: {
           size: 13
+        },
+        callbacks: {
+          title: (context: any) => {
+            // Show full date with year in tooltip
+            const dataIndex = context[0].dataIndex;
+            return this.fullDateLabels[dataIndex] || context[0].label;
+          }
         }
       }
     },
@@ -101,6 +112,12 @@ export class DashboardComponent implements OnInit {
         },
         grid: {
           color: 'rgba(0,0,0,0.05)'
+        },
+        ticks: {
+          maxTicksLimit: 15,
+          maxRotation: 45,
+          minRotation: 0,
+          autoSkip: true
         }
       },
       y: {
@@ -181,6 +198,11 @@ export class DashboardComponent implements OnInit {
         backgroundColor: 'rgba(0,0,0,0.8)',
         padding: 12,
         callbacks: {
+          title: (context: any) => {
+            // Show full date with year in tooltip
+            const dataIndex = context[0].dataIndex;
+            return this.revenueFullDateLabels[dataIndex] || context[0].label;
+          },
           label: function(context) {
             const value = context.parsed.y ?? 0;
             return ' $' + value.toLocaleString('en-US', {minimumFractionDigits: 2});
@@ -200,6 +222,12 @@ export class DashboardComponent implements OnInit {
         },
         grid: {
           display: false
+        },
+        ticks: {
+          maxTicksLimit: 15,
+          maxRotation: 45,
+          minRotation: 0,
+          autoSkip: true
         }
       },
       y: {
@@ -356,23 +384,49 @@ export class DashboardComponent implements OnInit {
   }
 
   updateCharts(): void {
+    if (this.aggregates.length === 0) return;
+    
+    // Calculate date range to determine label format
+    const dates = this.aggregates.map(a => new Date(a.metric_date + 'T00:00:00'));
+    const minDate = new Date(Math.min(...dates.map(d => d.getTime())));
+    const maxDate = new Date(Math.max(...dates.map(d => d.getTime())));
+    const daysDiff = Math.floor((maxDate.getTime() - minDate.getTime()) / (1000 * 60 * 60 * 24));
+    
     // Group data by date and service type
     const dateMap = new Map<string, Map<string, number>>();
     const revenueMap = new Map<string, number>();
     const dateToSortKey = new Map<string, string>();
+    const dateToFullDate = new Map<string, string>();
     
     this.aggregates.forEach(agg => {
       // Parse the date string correctly
       const date = new Date(agg.metric_date + 'T00:00:00');
-      const dateStr = date.toLocaleDateString('en-US', { 
-        month: 'short', 
-        day: 'numeric' 
-      });
       const sortKey = agg.metric_date; // Keep ISO format for sorting
+      
+      // Format date label based on date range
+      let dateStr: string;
+      if (daysDiff <= 60) {
+        // Short range: show "Jan 5"
+        dateStr = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      } else if (daysDiff <= 365) {
+        // Medium range: show "Jan 2020"
+        dateStr = date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+      } else {
+        // Long range: show "2020" (year only)
+        dateStr = date.toLocaleDateString('en-US', { year: 'numeric' });
+      }
+      
+      // Full date for tooltip
+      const fullDate = date.toLocaleDateString('en-US', { 
+        month: 'short', 
+        day: 'numeric', 
+        year: 'numeric' 
+      });
       
       if (!dateMap.has(sortKey)) {
         dateMap.set(sortKey, new Map());
         dateToSortKey.set(sortKey, dateStr);
+        dateToFullDate.set(sortKey, fullDate);
       }
       
       const serviceMap = dateMap.get(sortKey)!;
@@ -385,6 +439,10 @@ export class DashboardComponent implements OnInit {
     // Sort dates by ISO string
     const sortedKeys = Array.from(dateMap.keys()).sort();
     const sortedDates = sortedKeys.map(key => dateToSortKey.get(key)!);
+    
+    // Store full dates for tooltips
+    this.fullDateLabels = sortedKeys.map(key => dateToFullDate.get(key)!);
+    this.revenueFullDateLabels = this.fullDateLabels;
     
     // Get unique service types
     const serviceTypes = Array.from(new Set(this.aggregates.map(a => a.service_type)));
