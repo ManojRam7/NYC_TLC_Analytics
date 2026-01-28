@@ -198,9 +198,9 @@ export class DashboardComponent implements OnInit {
     private authService: AuthService,
     private router: Router
   ) {
-    // Set default date range to show data from 2020-05 (where we have data)
-    const defaultStart = new Date('2020-05-01');
-    const defaultEnd = new Date('2020-05-31');
+    // Set default date range for 5 years: 2020-2024
+    const defaultStart = new Date('2020-01-01');
+    const defaultEnd = new Date('2024-12-31');
     this.startDate = this.formatDateForInput(defaultStart);
     this.endDate = this.formatDateForInput(defaultEnd);
   }
