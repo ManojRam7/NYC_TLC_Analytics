@@ -80,13 +80,9 @@ export class DashboardComponent implements OnInit {
     private authService: AuthService,
     private router: Router
   ) {
-    // Set default date range (last 30 days)
-    const today = new Date();
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(today.getDate() - 30);
-    
-    this.endDate = this.formatDate(today);
-    this.startDate = this.formatDate(thirtyDaysAgo);
+    // Set default date range to show data from 2020-05 (where we have data)
+    this.startDate = '2020-05-01';
+    this.endDate = '2020-05-31';
   }
 
   ngOnInit(): void {
