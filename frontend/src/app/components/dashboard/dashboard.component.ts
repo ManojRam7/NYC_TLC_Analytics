@@ -328,7 +328,7 @@ export class DashboardComponent implements OnInit {
       this.endDate,
       this.serviceType || undefined,
       1,
-      1000  // Get all for chart
+      10000  // Get all data for chart aggregation
     ).subscribe({
       next: (response) => {
         this.aggregates = response.data;
@@ -431,8 +431,8 @@ export class DashboardComponent implements OnInit {
       aggregateBy = 'year';
     }
     
-    this.chartTitle = `${titleLabel} Trip Volume - Time Series`;
-    this.revenueChartTitle = `${titleLabel} Revenue`;
+    this.chartTitle = 'Trip Volume - Time Series';
+    this.revenueChartTitle = 'Revenue';
     
     console.log(`Aggregation: ${aggregateBy}, Title: ${titleLabel}`);
     
