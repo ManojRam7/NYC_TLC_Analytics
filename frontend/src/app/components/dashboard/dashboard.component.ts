@@ -91,12 +91,28 @@ export class DashboardComponent implements OnInit {
     scales: {
       x: {
         display: true,
+        title: {
+          display: true,
+          text: 'Date',
+          font: {
+            size: 13,
+            weight: 'bold'
+          }
+        },
         grid: {
           color: 'rgba(0,0,0,0.05)'
         }
       },
       y: {
         display: true,
+        title: {
+          display: true,
+          text: 'Number of Trips',
+          font: {
+            size: 13,
+            weight: 'bold'
+          }
+        },
         grid: {
           color: 'rgba(0,0,0,0.05)'
         },
@@ -174,11 +190,27 @@ export class DashboardComponent implements OnInit {
     },
     scales: {
       x: {
+        title: {
+          display: true,
+          text: 'Date',
+          font: {
+            size: 13,
+            weight: 'bold'
+          }
+        },
         grid: {
           display: false
         }
       },
       y: {
+        title: {
+          display: true,
+          text: 'Revenue ($)',
+          font: {
+            size: 13,
+            weight: 'bold'
+          }
+        },
         grid: {
           color: 'rgba(0,0,0,0.05)'
         },
@@ -198,9 +230,9 @@ export class DashboardComponent implements OnInit {
     private authService: AuthService,
     private router: Router
   ) {
-    // Set default date range for 5 years: 2020-2024
+    // Set default date range to January 2020 for fast loading
     const defaultStart = new Date('2020-01-01');
-    const defaultEnd = new Date('2024-12-31');
+    const defaultEnd = new Date('2020-01-31');
     this.startDate = this.formatDateForInput(defaultStart);
     this.endDate = this.formatDateForInput(defaultEnd);
   }
@@ -288,7 +320,7 @@ export class DashboardComponent implements OnInit {
   }
 
   loadTrips(): void {
-    this.loadingTable = false;
+    this.loadingTable = true;
     this.tripError = '';
     
     this.apiService.getTrips(
