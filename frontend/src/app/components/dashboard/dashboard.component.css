@@ -255,12 +255,12 @@
 }
 
 .chart-container {
-  height: 350px;
+  height: 450px;
   position: relative;
 }
 
 .chart-pie {
-  height: 300px;
+  height: 380px;
 }
 
 /* Loading States */

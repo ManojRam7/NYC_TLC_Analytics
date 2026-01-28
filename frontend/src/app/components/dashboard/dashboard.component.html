@@ -117,7 +117,7 @@
     <!-- Trip Volume Time Series -->
     <div class="chart-section chart-wide">
       <div class="section-header">
-        <h2>📈 Daily Trip Volume - Time Series</h2>
+        <h2>📈 {{ chartTitle }}</h2>
       </div>
       <div class="chart-container" *ngIf="!loadingChart && aggregates.length > 0">
         <canvas 
@@ -154,10 +154,10 @@
       </div>
     </div>
 
-    <!-- Daily Revenue -->
+    <!-- Revenue Chart -->
     <div class="chart-section">
       <div class="section-header">
-        <h2>💵 Daily Revenue</h2>
+        <h2>💵 {{ revenueChartTitle }}</h2>
       </div>
       <div class="chart-container" *ngIf="!loadingChart && aggregates.length > 0">
         <canvas 

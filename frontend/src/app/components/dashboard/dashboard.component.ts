@@ -50,6 +50,10 @@ export class DashboardComponent implements OnInit {
   private fullDateLabels: string[] = [];
   private revenueFullDateLabels: string[] = [];
   
+  // Chart title based on aggregation
+  public chartTitle: string = 'Daily Trip Volume - Time Series';
+  public revenueChartTitle: string = 'Daily Revenue';
+  
   // Filter change subject for debouncing
   private filterChange$ = new Subject<void>();
   
@@ -392,14 +396,20 @@ export class DashboardComponent implements OnInit {
     const maxDate = new Date(Math.max(...dates.map(d => d.getTime())));
     const daysDiff = Math.floor((maxDate.getTime() - minDate.getTime()) / (1000 * 60 * 60 * 24));
     
-    // Determine aggregation level
+    // Determine aggregation level and chart titles
     let aggregateBy: 'day' | 'month' | 'year';
     if (daysDiff <= 60) {
       aggregateBy = 'day';
+      this.chartTitle = 'Daily Trip Volume - Time Series';
+      this.revenueChartTitle = 'Daily Revenue';
     } else if (daysDiff <= 730) { // ~2 years
       aggregateBy = 'month';
+      this.chartTitle = 'Monthly Trip Volume - Time Series';
+      this.revenueChartTitle = 'Monthly Revenue';
     } else {
       aggregateBy = 'year';
+      this.chartTitle = 'Yearly Trip Volume - Time Series';
+      this.revenueChartTitle = 'Yearly Revenue';
     }
     
     // Group data by aggregation period and service type
@@ -427,10 +437,14 @@ export class DashboardComponent implements OnInit {
         dateLabel = date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
         tooltipLabel = date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
       } else {
-        // Yearly: "2020" - aggregate by year
-        aggKey = String(date.getFullYear());
-        dateLabel = date.toLocaleDateString('en-US', { year: 'numeric' });
-        tooltipLabel = date.toLocaleDateString('en-US', { year: 'numeric' });
+        // Yearly: "2020" - but keep monthly granularity for data points
+        // Show years on X-axis, but plot monthly data
+        aggKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+        const year = date.getFullYear();
+        const month = date.toLocaleDateString('en-US', { month: 'short' });
+        // X-axis shows years, but we plot all months
+        dateLabel = year.toString();
+        tooltipLabel = `${month} ${year}`;
       }
       
       // Initialize maps if needed
@@ -448,9 +462,35 @@ export class DashboardComponent implements OnInit {
       revenueMap.set(aggKey, (revenueMap.get(aggKey) || 0) + agg.total_revenue);
     });
     
-    // Sort dates by ISO string
+    // Sort dates chronologically
     const sortedKeys = Array.from(dateMap.keys()).sort();
     const sortedDates = sortedKeys.map(key => dateToSortKey.get(key)!);
+    
+    // For yearly view, create year-only labels but keep monthly data points
+    let finalLabels = sortedDates;
+    if (aggregateBy === 'year') {
+      // Keep all data points but show only year markers on X-axis
+      // Store for axis configuration
+      (this.lineChartOptions!.scales as any)['x'].ticks = {
+        ...(this.lineChartOptions!.scales as any)['x'].ticks,
+        callback: function(value: any, index: number) {
+          const label = finalLabels[index];
+          // Show label only for first occurrence of each year
+          const firstIndex = finalLabels.indexOf(label);
+          return index === firstIndex ? label : '';
+        },
+        maxRotation: 0,
+        autoSkip: false
+      };
+    } else {
+      // Reset ticks for daily/monthly view
+      (this.lineChartOptions!.scales as any)['x'].ticks = {
+        maxTicksLimit: 15,
+        maxRotation: 45,
+        minRotation: 0,
+        autoSkip: true
+      };
+    }
     
     // Store full dates for tooltips
     this.fullDateLabels = sortedKeys.map(key => dateToFullDate.get(key)!);
@@ -506,6 +546,27 @@ export class DashboardComponent implements OnInit {
         borderWidth: 1
       }]
     };
+    
+    // Apply same yearly axis logic to revenue chart
+    if (aggregateBy === 'year') {
+      (this.revenueChartOptions!.scales as any)['x'].ticks = {
+        ...(this.revenueChartOptions!.scales as any)['x'].ticks,
+        callback: function(value: any, index: number) {
+          const label = sortedDates[index];
+          const firstIndex = sortedDates.indexOf(label);
+          return index === firstIndex ? label : '';
+        },
+        maxRotation: 0,
+        autoSkip: false
+      };
+    } else {
+      (this.revenueChartOptions!.scales as any)['x'].ticks = {
+        maxTicksLimit: 15,
+        maxRotation: 45,
+        minRotation: 0,
+        autoSkip: true
+      };
+    }
   }
   
   updatePieChart(): void {
