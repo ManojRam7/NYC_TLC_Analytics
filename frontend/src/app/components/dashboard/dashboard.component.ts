@@ -396,6 +396,8 @@ export class DashboardComponent implements OnInit {
     const maxDate = new Date(Math.max(...dates.map(d => d.getTime())));
     const daysDiff = Math.floor((maxDate.getTime() - minDate.getTime()) / (1000 * 60 * 60 * 24));
     
+    console.log(`Date range: ${daysDiff} days (${minDate.toISOString().split('T')[0]} to ${maxDate.toISOString().split('T')[0]})`);
+    
     // Determine aggregation level and chart titles
     // New aggregation rules:
     // ≤ 6 months (180 days): Daily X-axis labels
@@ -431,6 +433,8 @@ export class DashboardComponent implements OnInit {
     
     this.chartTitle = `${titleLabel} Trip Volume - Time Series`;
     this.revenueChartTitle = `${titleLabel} Revenue`;
+    
+    console.log(`Aggregation: ${aggregateBy}, Title: ${titleLabel}`);
     
     // Group data by aggregation period and service type
     const dateMap = new Map<string, Map<string, number>>();
@@ -483,6 +487,15 @@ export class DashboardComponent implements OnInit {
     // Sort dates chronologically
     const sortedKeys = Array.from(dateMap.keys()).sort();
     const sortedDates = sortedKeys.map(key => dateToSortKey.get(key)!);
+    
+    console.log(`Aggregated data points: ${sortedKeys.length}`, sortedKeys.slice(0, 10));
+    console.log(`Display labels:`, sortedDates.slice(0, 10));
+    
+    // For yearly aggregation, the keys are already unique years (2020, 2021, etc.)
+    // For monthly/daily, keys are already unique dates
+    // sortedDates will contain the display labels matching sortedKeys
+    
+    // Configure X-axis ticks based on aggregation leveling sortedKeys
     
     // Configure X-axis ticks based on aggregation level
     let finalLabels = sortedDates;
@@ -589,16 +602,16 @@ export class DashboardComponent implements OnInit {
   }
   
   updatePieChart(): void {
-    if (!this.summary || !this.summary.by_service_type.length) {
+    if (!this.summary || !this.summary.by_service_type || !this.summary.by_service_type.length) {
       return;
     }
     
     const colors = ['#f1c40f', '#2ecc71', '#3498db', '#9b59b6'];
     
     this.pieChartData = {
-      labels: this.summary.by_service_type.map(s => s.service_type.toUpperCase()),
+      labels: this.summary!.by_service_type.map(s => s.service_type.toUpperCase()),
       datasets: [{
-        data: this.summary.by_service_type.map(s => s.total_trips),
+        data: this.summary!.by_service_type.map(s => s.total_trips),
         backgroundColor: colors,
         borderWidth: 2,
         borderColor: '#fff'
