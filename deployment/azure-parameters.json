@@ -1,0 +1,36 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "location": {
+      "value": "eastus"
+    },
+    "acrName": {
+      "value": "nyctlcregistry"
+    },
+    "appServicePlanName": {
+      "value": "nyc-tlc-app-plan"
+    },
+    "backendAppName": {
+      "value": "nyc-tlc-backend-api"
+    },
+    "dbServer": {
+      "value": "nyc-sqldb-server"
+    },
+    "dbName": {
+      "value": "nyc-sqldatabase"
+    },
+    "dbUser": {
+      "value": "YOUR_DB_USERNAME"
+    },
+    "dbPassword": {
+      "value": "YOUR_DB_PASSWORD"
+    },
+    "secretKey": {
+      "value": "YOUR_SECRET_KEY_HERE"
+    },
+    "allowedOrigins": {
+      "value": "https://your-frontend-url.azurestaticapps.net"
+    }
+  }
+}
