@@ -262,9 +262,9 @@ export class DashboardComponent implements OnInit {
     private authService: AuthService,
     private router: Router
   ) {
-    // Set default date range to January 2020 for fast loading
+    // Set default date range to 5 years (2020-2024) to demonstrate yearly aggregation
     const defaultStart = new Date('2020-01-01');
-    const defaultEnd = new Date('2020-01-31');
+    const defaultEnd = new Date('2024-12-31');
     this.startDate = this.formatDateForInput(defaultStart);
     this.endDate = this.formatDateForInput(defaultEnd);
   }
