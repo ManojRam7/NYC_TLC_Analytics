@@ -397,20 +397,40 @@ export class DashboardComponent implements OnInit {
     const daysDiff = Math.floor((maxDate.getTime() - minDate.getTime()) / (1000 * 60 * 60 * 24));
     
     // Determine aggregation level and chart titles
+    // New aggregation rules:
+    // ≤ 6 months (180 days): Daily X-axis labels
+    // 6 months - 1 year (181-365 days): Monthly X-axis labels
+    // > 1 year (365+ days): Yearly X-axis labels
+    
+    // Chart title rules:
+    // < 1 month (30 days): "Daily"
+    // 1-3 months (31-90 days): "Daily"
+    // 3 months - 1 year (91-365 days): "Monthly"
+    // > 1 year (365+ days): "Yearly"
+    
     let aggregateBy: 'day' | 'month' | 'year';
-    if (daysDiff <= 60) {
+    let titleLabel: string;
+    
+    // Determine chart title based on date range
+    if (daysDiff <= 90) {
+      titleLabel = 'Daily';
+    } else if (daysDiff <= 365) {
+      titleLabel = 'Monthly';
+    } else {
+      titleLabel = 'Yearly';
+    }
+    
+    // Determine aggregation level for X-axis
+    if (daysDiff <= 180) {
       aggregateBy = 'day';
-      this.chartTitle = 'Daily Trip Volume - Time Series';
-      this.revenueChartTitle = 'Daily Revenue';
-    } else if (daysDiff <= 730) { // ~2 years
+    } else if (daysDiff <= 365) {
       aggregateBy = 'month';
-      this.chartTitle = 'Monthly Trip Volume - Time Series';
-      this.revenueChartTitle = 'Monthly Revenue';
     } else {
       aggregateBy = 'year';
-      this.chartTitle = 'Yearly Trip Volume - Time Series';
-      this.revenueChartTitle = 'Yearly Revenue';
     }
+    
+    this.chartTitle = `${titleLabel} Trip Volume - Time Series`;
+    this.revenueChartTitle = `${titleLabel} Revenue`;
     
     // Group data by aggregation period and service type
     const dateMap = new Map<string, Map<string, number>>();
@@ -427,24 +447,22 @@ export class DashboardComponent implements OnInit {
       let tooltipLabel: string;
       
       if (aggregateBy === 'day') {
-        // Daily: "Jan 5"
+        // Daily: Show all days (for ≤6 months)
         aggKey = agg.metric_date;
         dateLabel = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
         tooltipLabel = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
       } else if (aggregateBy === 'month') {
-        // Monthly: "Jan 2020" - aggregate by year-month
+        // Monthly: "Jan 2020" (for 6 months - 1 year)
         aggKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
         dateLabel = date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
         tooltipLabel = date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
       } else {
-        // Yearly: "2020" - but keep monthly granularity for data points
-        // Show years on X-axis, but plot monthly data
-        aggKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+        // Yearly: Show years only on X-axis (for > 1 year)
+        // Aggregate by year, show year labels
         const year = date.getFullYear();
-        const month = date.toLocaleDateString('en-US', { month: 'short' });
-        // X-axis shows years, but we plot all months
+        aggKey = year.toString();
         dateLabel = year.toString();
-        tooltipLabel = `${month} ${year}`;
+        tooltipLabel = date.toLocaleDateString('en-US', { year: 'numeric' });
       }
       
       // Initialize maps if needed
@@ -466,29 +484,29 @@ export class DashboardComponent implements OnInit {
     const sortedKeys = Array.from(dateMap.keys()).sort();
     const sortedDates = sortedKeys.map(key => dateToSortKey.get(key)!);
     
-    // For yearly view, create year-only labels but keep monthly data points
+    // Configure X-axis ticks based on aggregation level
     let finalLabels = sortedDates;
-    if (aggregateBy === 'year') {
-      // Keep all data points but show only year markers on X-axis
-      // Store for axis configuration
+    if (aggregateBy === 'day') {
+      // Daily view: Show all days with rotation for readability
       (this.lineChartOptions!.scales as any)['x'].ticks = {
-        ...(this.lineChartOptions!.scales as any)['x'].ticks,
-        callback: function(value: any, index: number) {
-          const label = finalLabels[index];
-          // Show label only for first occurrence of each year
-          const firstIndex = finalLabels.indexOf(label);
-          return index === firstIndex ? label : '';
-        },
-        maxRotation: 0,
+        maxRotation: 45,
+        minRotation: 30,
+        autoSkip: true,
+        maxTicksLimit: 30
+      };
+    } else if (aggregateBy === 'month') {
+      // Monthly view: Show all months
+      (this.lineChartOptions!.scales as any)['x'].ticks = {
+        maxRotation: 45,
+        minRotation: 0,
         autoSkip: false
       };
     } else {
-      // Reset ticks for daily/monthly view
+      // Yearly view: Show years only
       (this.lineChartOptions!.scales as any)['x'].ticks = {
-        maxTicksLimit: 15,
-        maxRotation: 45,
+        maxRotation: 0,
         minRotation: 0,
-        autoSkip: true
+        autoSkip: false
       };
     }
     
@@ -547,24 +565,25 @@ export class DashboardComponent implements OnInit {
       }]
     };
     
-    // Apply same yearly axis logic to revenue chart
-    if (aggregateBy === 'year') {
+    // Apply same axis logic to revenue chart
+    if (aggregateBy === 'day') {
       (this.revenueChartOptions!.scales as any)['x'].ticks = {
-        ...(this.revenueChartOptions!.scales as any)['x'].ticks,
-        callback: function(value: any, index: number) {
-          const label = sortedDates[index];
-          const firstIndex = sortedDates.indexOf(label);
-          return index === firstIndex ? label : '';
-        },
-        maxRotation: 0,
+        maxRotation: 45,
+        minRotation: 30,
+        autoSkip: true,
+        maxTicksLimit: 30
+      };
+    } else if (aggregateBy === 'month') {
+      (this.revenueChartOptions!.scales as any)['x'].ticks = {
+        maxRotation: 45,
+        minRotation: 0,
         autoSkip: false
       };
     } else {
       (this.revenueChartOptions!.scales as any)['x'].ticks = {
-        maxTicksLimit: 15,
-        maxRotation: 45,
+        maxRotation: 0,
         minRotation: 0,
-        autoSkip: true
+        autoSkip: false
       };
     }
   }
