@@ -386,54 +386,66 @@ export class DashboardComponent implements OnInit {
   updateCharts(): void {
     if (this.aggregates.length === 0) return;
     
-    // Calculate date range to determine label format
+    // Calculate date range to determine aggregation strategy
     const dates = this.aggregates.map(a => new Date(a.metric_date + 'T00:00:00'));
     const minDate = new Date(Math.min(...dates.map(d => d.getTime())));
     const maxDate = new Date(Math.max(...dates.map(d => d.getTime())));
     const daysDiff = Math.floor((maxDate.getTime() - minDate.getTime()) / (1000 * 60 * 60 * 24));
     
-    // Group data by date and service type
+    // Determine aggregation level
+    let aggregateBy: 'day' | 'month' | 'year';
+    if (daysDiff <= 60) {
+      aggregateBy = 'day';
+    } else if (daysDiff <= 730) { // ~2 years
+      aggregateBy = 'month';
+    } else {
+      aggregateBy = 'year';
+    }
+    
+    // Group data by aggregation period and service type
     const dateMap = new Map<string, Map<string, number>>();
     const revenueMap = new Map<string, number>();
     const dateToSortKey = new Map<string, string>();
     const dateToFullDate = new Map<string, string>();
     
     this.aggregates.forEach(agg => {
-      // Parse the date string correctly
       const date = new Date(agg.metric_date + 'T00:00:00');
-      const sortKey = agg.metric_date; // Keep ISO format for sorting
       
-      // Format date label based on date range
-      let dateStr: string;
-      if (daysDiff <= 60) {
-        // Short range: show "Jan 5"
-        dateStr = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-      } else if (daysDiff <= 365) {
-        // Medium range: show "Jan 2020"
-        dateStr = date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+      // Create aggregation key based on level
+      let aggKey: string;
+      let dateLabel: string;
+      let tooltipLabel: string;
+      
+      if (aggregateBy === 'day') {
+        // Daily: "Jan 5"
+        aggKey = agg.metric_date;
+        dateLabel = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        tooltipLabel = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+      } else if (aggregateBy === 'month') {
+        // Monthly: "Jan 2020" - aggregate by year-month
+        aggKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+        dateLabel = date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+        tooltipLabel = date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
       } else {
-        // Long range: show "2020" (year only)
-        dateStr = date.toLocaleDateString('en-US', { year: 'numeric' });
+        // Yearly: "2020" - aggregate by year
+        aggKey = String(date.getFullYear());
+        dateLabel = date.toLocaleDateString('en-US', { year: 'numeric' });
+        tooltipLabel = date.toLocaleDateString('en-US', { year: 'numeric' });
       }
       
-      // Full date for tooltip
-      const fullDate = date.toLocaleDateString('en-US', { 
-        month: 'short', 
-        day: 'numeric', 
-        year: 'numeric' 
-      });
-      
-      if (!dateMap.has(sortKey)) {
-        dateMap.set(sortKey, new Map());
-        dateToSortKey.set(sortKey, dateStr);
-        dateToFullDate.set(sortKey, fullDate);
+      // Initialize maps if needed
+      if (!dateMap.has(aggKey)) {
+        dateMap.set(aggKey, new Map());
+        dateToSortKey.set(aggKey, dateLabel);
+        dateToFullDate.set(aggKey, tooltipLabel);
       }
       
-      const serviceMap = dateMap.get(sortKey)!;
+      // Aggregate trips by service type within this period
+      const serviceMap = dateMap.get(aggKey)!;
       serviceMap.set(agg.service_type, (serviceMap.get(agg.service_type) || 0) + agg.total_trips);
       
-      // Revenue by date
-      revenueMap.set(sortKey, (revenueMap.get(sortKey) || 0) + agg.total_revenue);
+      // Aggregate revenue for this period
+      revenueMap.set(aggKey, (revenueMap.get(aggKey) || 0) + agg.total_revenue);
     });
     
     // Sort dates by ISO string
