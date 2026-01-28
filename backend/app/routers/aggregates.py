@@ -37,7 +37,7 @@ async def get_daily_aggregates(
     end_date: date = Query(..., description="End date (YYYY-MM-DD)"),
     service_type: Optional[ServiceType] = Query(None, description="Filter by service type"),
     page: int = Query(1, ge=1, description="Page number"),
-    page_size: int = Query(100, ge=1, le=1000, description="Items per page"),
+    page_size: int = Query(100, ge=1, le=10000, description="Items per page"),
     current_user: User = Depends(get_current_active_user)
 ):
     """
