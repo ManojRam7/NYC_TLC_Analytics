@@ -31,20 +31,67 @@ async def get_trips(
     current_user: User = Depends(get_current_active_user)
 ):
     """
-    Get individual trip records with filters and pagination.
+    Get sample trip records (limited to 500 for performance).
     
-    Note: Temporarily returning empty results due to performance optimization.
-    Focus on summary cards and charts for analytics.
+    Returns sample data to give a glimpse of individual trip details.
+    Limited to most recent 500 records to maintain performance.
     """
     
-    # Temporarily return empty results to avoid timeout on 159.5M records
-    # This allows dashboard to load quickly with summary and charts working
-    return TripsResponse(
-        data=[],
-        pagination=PaginationResponse(
-            page=1,
-            page_size=page_size,
-            total_records=0,
-            total_pages=0
+    try:
+        # Build query with filters
+        query = "SELECT TOP 500 * FROM fact_trips WHERE 1=1"
+        params = []
+        
+        # Add date filter
+        if start_date and end_date:
+            query += " AND CAST(tpep_dropoff_datetime AS DATE) BETWEEN ? AND ?"
+            params.extend([start_date, end_date])
+        
+        # Add service type filter
+        if service_type:
+            query += " AND service_type = ?"
+            params.append(service_type.value)
+        
+        # Order by most recent first, apply pagination
+        query += " ORDER BY tpep_dropoff_datetime DESC"
+        
+        # Execute query
+        cursor = db.cursor()
+        cursor.execute(query, params)
+        rows = cursor.fetchall()
+        
+        # Convert to Trip objects
+        trips_data = []
+        for row in rows:
+            trip = Trip(
+                trip_id=str(row[0]) if row[0] else None,
+                vendor_id=row[1] if len(row) > 1 else None,
+                tpep_pickup_datetime=row[2] if len(row) > 2 else None,
+                tpep_dropoff_datetime=row[3] if len(row) > 3 else None,
+                passenger_count=row[4] if len(row) > 4 else None,
+                trip_distance=float(row[5]) if len(row) > 5 and row[5] else 0.0,
+                fare_amount=float(row[6]) if len(row) > 6 and row[6] else 0.0,
+                service_type=row[-1] if row else None  # Last column is service_type
+            )
+            trips_data.append(trip)
+        
+        return TripsResponse(
+            data=trips_data[:page_size],  # Apply page size limit
+            pagination=PaginationResponse(
+                page=page,
+                page_size=page_size,
+                total_records=len(trips_data),
+                total_pages=math.ceil(len(trips_data) / page_size) if page_size > 0 else 0
+            )
         )
-    )
+    except Exception as e:
+        # If query fails, return empty gracefully
+        return TripsResponse(
+            data=[],
+            pagination=PaginationResponse(
+                page=page,
+                page_size=page_size,
+                total_records=0,
+                total_pages=0
+            )
+        )

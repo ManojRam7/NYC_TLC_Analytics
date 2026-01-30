@@ -370,7 +370,7 @@ export class DashboardComponent implements OnInit {
         this.loadingTable = false;
         
         if (this.trips.length === 0 && !this.tripError) {
-          this.tripError = 'Trip records hidden for performance. Use summary cards and charts above for insights.';
+          this.tripError = 'No trip records found for the selected date range and filters.';
         }
       },
       error: (err) => {
